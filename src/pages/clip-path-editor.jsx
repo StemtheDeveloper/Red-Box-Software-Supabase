@@ -2,12 +2,18 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Copy, Square, Hexagon, Triangle, Circle } from 'lucide-react'
 
 const ClipPathEditor = () => {
-  const [points, setPoints] = useState([
+
+  const initialPoints = [
     { x: 50, y: 0, curve: false },
     { x: 100, y: 50, curve: false },
     { x: 50, y: 100, curve: false },
     { x: 0, y: 50, curve: false }
-  ])
+  ];
+
+  const [points, setPoints] = useState(initialPoints)
+
+  const [dragStartPoints, setDragStartPoints] = useState(null);
+
   const [selectedPoint, setSelectedPoint] = useState(null)
   const [controlPoint, setControlPoint] = useState(null)
   const [rotation, setRotation] = useState(0)
@@ -15,6 +21,11 @@ const ClipPathEditor = () => {
   const [shape, setShape] = useState('custom')
   const svgRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false);
+  const [shiftPressed, setShiftPressed] = useState(false);
+  const [altPressed, setAltPressed] = useState(false);
+  const [selectedPoints, setSelectedPoints] = useState(new Set());
+  const [history, setHistory] = useState([initialPoints]);
+  const [historyIndex, setHistoryIndex] = useState(0);
 
   const presetShapes = {
     square: [
@@ -44,6 +55,112 @@ const ClipPathEditor = () => {
     ]
   }
 
+  useEffect(() => {
+    if (dragStartPoints) {
+      const pointsCopy = JSON.parse(JSON.stringify(dragStartPoints));
+      setPoints(pointsCopy);
+    }
+  }, [dragStartPoints]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Shift') setShiftPressed(true);
+      if (e.key === 'Alt') setAltPressed(true);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedPoints.size > 0) {
+        e.preventDefault();
+        deleteSelectedPoints();
+      }
+      if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key === 'Shift') setShiftPressed(false);
+      if (e.key === 'Alt') setAltPressed(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [selectedPoints, historyIndex, history]);
+
+  const saveToHistory = (newPoints) => {
+    const pointsCopy = JSON.parse(JSON.stringify(newPoints));
+
+    // Only save to history if the points are different from the last state
+    if (JSON.stringify(history[historyIndex]) !== JSON.stringify(pointsCopy)) {
+      setPoints(pointsCopy);
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(pointsCopy);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      const pointsCopy = JSON.parse(JSON.stringify(history[newIndex]));
+      setHistoryIndex(newIndex);
+      setPoints(pointsCopy);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      const pointsCopy = JSON.parse(JSON.stringify(history[newIndex]));
+      setHistoryIndex(newIndex);
+      setPoints(pointsCopy);
+    }
+  };
+
+  const setPointsWithHistory = (newPoints) => {
+    const pointsCopy = JSON.parse(JSON.stringify(newPoints));
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(pointsCopy);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setPoints(pointsCopy);
+    saveToHistory(newPoints);
+  };
+
+  const findClosestPointOnPath = (clickX, clickY) => {
+    const pathLength = 100; // Number of points to check along the path
+    let closestPoint = { x: 0, y: 0 };
+    let minDistance = Infinity;
+
+    for (let i = 0; i < points.length; i++) {
+      const currentPoint = points[i];
+      const nextPoint = points[(i + 1) % points.length];
+
+      // Check points along the line segment
+      for (let t = 0; t <= 1; t += 1 / pathLength) {
+        const x = currentPoint.x + (nextPoint.x - currentPoint.x) * t;
+        const y = currentPoint.y + (nextPoint.y - currentPoint.y) * t;
+
+        const distance = Math.sqrt((x - clickX) ** 2 + (y - clickY) ** 2);
+
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestPoint = { x, y };
+        }
+      }
+    }
+
+    return closestPoint;
+  };
+
   const handleWheel = (e) => {
     if (svgRef.current.contains(e.target)) {
       e.preventDefault();
@@ -66,6 +183,8 @@ const ClipPathEditor = () => {
   }, [scale]);
 
   const handleMouseDown = (index, isControl, controlNumber) => {
+    // Don't save initial state to history, just keep it for reference
+    setDragStartPoints(JSON.parse(JSON.stringify(points)));
     setIsDragging(true);
     if (isControl) {
       setControlPoint({ pointIndex: index, controlNumber });
@@ -74,72 +193,203 @@ const ClipPathEditor = () => {
     }
   };
 
-  const handleMouseMove = (e) => {
-    if (selectedPoint === null && controlPoint === null) return
+  const handleSvgClick = (e) => {
+    if (!shiftPressed) return;
 
-    const svg = svgRef.current
-    const rect = svg.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
-    const newX = Math.min(100, Math.max(0, x))
-    const newY = Math.min(100, Math.max(0, y))
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-    if (controlPoint) {
-      setPoints(points.map((point, index) => {
-        if (index === controlPoint.pointIndex) {
-          const controlKey = `control${controlPoint.controlNumber}`
-          return {
-            ...point,
-            [controlKey]: { x: newX, y: newY }
-          }
-        }
-        return point
-      }))
-    } else if (selectedPoint !== null) {
-      setPoints(points.map((point, index) =>
-        index === selectedPoint ? { ...point, x: newX, y: newY } : point
-      ))
+    // Find the closest point on the path
+    const closestPoint = findClosestPointOnPath(x, y);
+
+    // Find the index where to insert the new point
+    let insertIndex = 0;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < points.length; i++) {
+      const currentPoint = points[i];
+      const nextPoint = points[(i + 1) % points.length];
+
+      const midX = (currentPoint.x + nextPoint.x) / 2;
+      const midY = (currentPoint.y + nextPoint.y) / 2;
+
+      const distance = Math.sqrt((midX - closestPoint.x) ** 2 + (midY - closestPoint.y) ** 2);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        insertIndex = i + 1;
+      }
     }
-  }
 
+    // Insert the new point
+    const newPoints = [...points];
+    newPoints.splice(insertIndex, 0, {
+      x: closestPoint.x,
+      y: closestPoint.y,
+      curve: false,
+      control1: { x: closestPoint.x - 20, y: closestPoint.y },
+      control2: { x: closestPoint.x + 20, y: closestPoint.y }
+    });
+    setPointsWithHistory(newPoints);
+  };
+
+  const togglePointSelection = (index, event) => {
+    event.stopPropagation();
+    const newSelection = new Set(selectedPoints);
+
+    if (event.ctrlKey || event.metaKey) {
+      if (newSelection.has(index)) {
+        newSelection.delete(index);
+      } else {
+        newSelection.add(index);
+      }
+    } else {
+      newSelection.clear();
+      newSelection.add(index);
+    }
+
+    setSelectedPoints(newSelection);
+  };
+
+  // Function to delete selected points
+  const deleteSelectedPoints = () => {
+    if (points.length - selectedPoints.size < 3) {
+      // Don't delete if it would result in fewer than 3 points
+      return;
+    }
+
+    const newPoints = points.filter((_, index) => !selectedPoints.has(index));
+    saveToHistory(newPoints);
+    setSelectedPoints(new Set());
+  };
+
+  const handleMouseMove = (e) => {
+    if (selectedPoint === null && controlPoint === null) return;
+
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+
+    // Calculate the center of the SVG
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    // Get mouse position relative to SVG
+    let x = ((e.clientX - rect.left - centerX) / (rect.width * scale / 100)) * 100 + 50;
+    let y = ((e.clientY - rect.top - centerY) / (rect.height * scale / 100)) * 100 + 50;
+
+    if (rotation !== 0) {
+      const radians = (-rotation * Math.PI) / 180;
+      const rotatedX = x - 50;
+      const rotatedY = y - 50;
+      x = (rotatedX * Math.cos(radians) - rotatedY * Math.sin(radians)) + 50;
+      y = (rotatedX * Math.sin(radians) + rotatedY * Math.cos(radians)) + 50;
+    }
+
+    const newX = Math.min(100, Math.max(0, x));
+    const newY = Math.min(100, Math.max(0, y));
+
+    const newPoints = points.map((point, index) => {
+      if (controlPoint && index === controlPoint.pointIndex) {
+        return {
+          ...point,
+          [`control${controlPoint.controlNumber}`]: { x: newX, y: newY },
+          curve: true
+        };
+      } else if (selectedPoint !== null && index === selectedPoint) {
+        const deltaX = newX - point.x;
+        const deltaY = newY - point.y;
+        return {
+          ...point,
+          x: newX,
+          y: newY,
+          control1: point.control1 ? {
+            x: point.control1.x + deltaX,
+            y: point.control1.y + deltaY
+          } : null,
+          control2: point.control2 ? {
+            x: point.control2.x + deltaX,
+            y: point.control2.y + deltaY
+          } : null
+        };
+      }
+      return point;
+    });
+
+    // Just update points without saving to history during drag
+    setPoints(newPoints);
+  };
 
   const handleMouseUp = () => {
+    if (isDragging && dragStartPoints) {
+      // Only save to history if points actually changed
+      if (JSON.stringify(points) !== JSON.stringify(dragStartPoints)) {
+        saveToHistory(points);
+      }
+      setDragStartPoints(null);
+    }
+
     setIsDragging(false);
     setSelectedPoint(null);
     setControlPoint(null);
   };
 
 
+
   const toggleCurve = (index) => {
-    setPoints(points.map((point, i) => {
-      if (i === index) {
-        return {
-          ...point,
-          curve: !point.curve,
-          control1: point.control1 || { x: point.x - 20, y: point.y },
-          control2: point.control2 || { x: point.x + 20, y: point.y }
+    if (altPressed) {
+      const newPoints = points.map((point, i) => {
+        if (i === index) {
+          const newCurve = !point.curve;
+          const dx = 20; // Distance for control points
+
+          let control1 = point.control1;
+          let control2 = point.control2;
+
+          if (newCurve) {
+            if (!control1) {
+              control1 = { x: point.x - dx, y: point.y };
+            }
+            if (!control2) {
+              control2 = { x: point.x + dx, y: point.y };
+            }
+          }
+
+          return {
+            ...point,
+            curve: newCurve,
+            control1: newCurve ? control1 : null,
+            control2: newCurve ? control2 : null
+          };
         }
-      }
-      return point
-    }))
-  }
+        return point;
+      });
+      saveToHistory(newPoints);
+    }
+  };
+
+
 
   const generatePath = () => {
     let path = ''
     points.forEach((point, index) => {
       const nextPoint = points[(index + 1) % points.length]
+      const transformedPoint = transformPoint(point)
+      const transformedNext = transformPoint(nextPoint)
+      const transformedControl2 = transformPoint(point.control2)
+      const transformedControl1Next = transformPoint(nextPoint.control1)
 
       if (index === 0) {
-        path += `M ${point.x} ${point.y} `
+        path += `M ${transformedPoint.x} ${transformedPoint.y} `
       }
 
       if (nextPoint.curve) {
-        path += `C ${point.control2?.x || point.x} ${point.control2?.y || point.y}, `
-
-        path += `${nextPoint.control1?.x || nextPoint.x} ${nextPoint.control1?.y || nextPoint.y}, `
-        path += `${nextPoint.x} ${nextPoint.y} `
+        path += `C ${transformedControl2?.x || transformedPoint.x} ${transformedControl2?.y || transformedPoint.y}, `
+        path += `${transformedControl1Next?.x || transformedNext.x} ${transformedControl1Next?.y || transformedNext.y}, `
+        path += `${transformedNext.x} ${transformedNext.y}`
       } else {
-        path += `L ${nextPoint.x} ${nextPoint.y} `
+        path += `L ${transformedNext.x} ${transformedNext.y}`
       }
     })
     path += 'Z'
@@ -163,24 +413,38 @@ const ClipPathEditor = () => {
   }
 
   const handleShapeChange = (newShape) => {
-    setShape(newShape)
-    setPoints(presetShapes[newShape] || points)
-    setRotation(0)
-    setScale(100)
-  }
+    const newPoints = presetShapes[newShape]?.map(point => ({
+      ...point,
+      control1: point.control1 || { x: point.x - 20, y: point.y },
+      control2: point.control2 || { x: point.x + 20, y: point.y }
+    })) || points;
+
+    setShape(newShape);
+    saveToHistory(newPoints);
+    setRotation(0);
+    setScale(100);
+  };
 
   const addPoint = () => {
-    if (points.length >= 50) return // Limit maximum points
-    const lastPoint = points[points.length - 1]
-    setPoints([...points, { x: lastPoint.x + 10, y: lastPoint.y + 10, curve: false }])
-  }
+    if (points.length >= 50) return;
+    const lastPoint = points[points.length - 1];
+    setPointsWithHistory([...points, {
+      x: lastPoint.x + 10,
+      y: lastPoint.y + 10,
+      curve: false,
+      control1: { x: lastPoint.x - 10, y: lastPoint.y + 10 },
+      control2: { x: lastPoint.x + 30, y: lastPoint.y + 10 }
+    }]);
+  };
 
   const removePoint = (index) => {
     if (points.length <= 3) return // Maintain minimum 3 points
-    setPoints(points.filter((_, i) => i !== index))
+    setPointsWithHistory(points.filter((_, i) => i !== index))
   }
 
-  const transformPoint = (point) => {
+  const transformPoint = (point, isControl = false) => {
+    if (!point) return null;
+
     const radians = (rotation * Math.PI) / 180;
     const centerX = 50;
     const centerY = 50;
@@ -317,23 +581,21 @@ const ClipPathEditor = () => {
             ref={svgRef}
             viewBox="0 0 100 100"
             onMouseMove={handleMouseMove}
+            onClick={handleSvgClick}
             className="w-full h-full"
-            style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+            style={{ cursor: isDragging ? 'grabbing' : shiftPressed ? 'crosshair' : 'grab' }}
           >
             <path
               d={generatePath()}
               fill="rgba(255, 44, 60, 0.5)"
               stroke="#ff2c3c"
               strokeWidth="1"
-              style={{
-                transform: `rotate(${rotation}deg) scale(${scale / 100})`,
-                transformOrigin: 'center'
-              }}
+
             />
             {points.map((point, index) => {
               const transformedPoint = transformPoint(point);
-              const control1 = point.control1 ? transformPoint(point.control1) : null;
-              const control2 = point.control2 ? transformPoint(point.control2) : null;
+              const control1 = transformPoint(point.control1, true);
+              const control2 = transformPoint(point.control2, true);
 
               return (
                 <g key={index}>
@@ -341,63 +603,67 @@ const ClipPathEditor = () => {
                     cx={transformedPoint.x}
                     cy={transformedPoint.y}
                     r="2"
-                    fill={point.curve ? "#ff2c3c" : "#ff2c3c"}
-                    stroke="#fff"
+                    fill={selectedPoints.has(index) ? "#ff6f2c" : "#ff2c3c"}
+                    stroke={selectedPoints.has(index) ? "#fff" : "#fff"}
                     strokeWidth="0.5"
                     cursor="pointer"
-                    onMouseDown={() => handleMouseDown(index)}
-                    onClick={() => toggleCurve(index)}
+                    onMouseDown={(e) => {
+                      if (!shiftPressed) handleMouseDown(index);
+                    }}
+                    onClick={(e) => {
+                      if (e.ctrlKey || e.metaKey) {
+                        togglePointSelection(index, e);
+                      } else {
+                        toggleCurve(index);
+                      }
+                    }}
                   />
                   {point.curve && (
                     <>
                       <line
                         x1={transformedPoint.x}
                         y1={transformedPoint.y}
-                        x2={control1?.x || transformedPoint.x}
-                        y2={control1?.y || transformedPoint.y}
+                        x2={control1?.x}
+                        y2={control1?.y}
                         stroke="#ff2c3c"
                         strokeWidth="0.5"
                         strokeDasharray="2,2"
-                        style={{ zIndex: 1 }}
                       />
                       <circle
-                        cx={control1?.x || transformedPoint.x}
-                        cy={control1?.y || transformedPoint.y}
+                        cx={control1?.x}
+                        cy={control1?.y}
                         r="1.5"
                         fill="#ff2c3c"
                         cursor="pointer"
-                        style={{ zIndex: 2 }}
                         onMouseDown={() => handleMouseDown(index, true, 1)}
                       />
                       <line
                         x1={transformedPoint.x}
                         y1={transformedPoint.y}
-                        x2={control2?.x || transformedPoint.x}
-                        y2={control2?.y || transformedPoint.y}
+                        x2={control2?.x}
+                        y2={control2?.y}
                         stroke="#ff2c3c"
                         strokeWidth="0.5"
                         strokeDasharray="2,2"
-                        style={{ zIndex: 1 }}
                       />
                       <circle
-                        cx={control2?.x || transformedPoint.x}
-                        cy={control2?.y || transformedPoint.y}
+                        cx={control2?.x}
+                        cy={control2?.y}
                         r="1.5"
                         fill="#ff2c3c"
                         cursor="pointer"
-                        style={{ zIndex: 2 }}
                         onMouseDown={() => handleMouseDown(index, true, 2)}
                       />
                     </>
                   )}
-                  <text
+                  {/* <text
                     x={transformedPoint.x + 2}
                     y={transformedPoint.y - 2}
                     fontSize="4"
                     fill="#ff2c3c"
                   >
                     {index + 1}
-                  </text>
+                  </text> */}
                 </g>
               );
             })}
