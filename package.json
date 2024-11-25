@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://github.com/StemtheDeveloper/Red-Box-Software-Supabase",
+  "homepage": "http://red-box-software.com/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
