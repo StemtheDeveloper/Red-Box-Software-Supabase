@@ -1,4 +1,4 @@
-
+import { useState, useEffect, useRef } from 'react'
 import { Copy, Square, Hexagon, Triangle, Circle } from 'lucide-react'
 
 const ClipPathEditor = () => {
