@@ -1,4 +1,3 @@
-import React from 'react'
 import ME from '../assets/Images/Business-profile2.JPG'
 import GPC from '../assets/Images/GP creamvil walk animation.gif'
 

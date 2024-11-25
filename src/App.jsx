@@ -35,32 +35,32 @@ function App() {
   }, [])
 
   return (
-    <Router>
-      <div className="app">
-        <Navbar session={session} />
-        <div className="pages">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/gallery" element={<Gallery />} />
-            <Route path="/apply" element={<Apply />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/shape_edit" element={<Shape />} />
-            <Route path="/404" element={<NotFound />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-        {/* this is yucky practice */}
-        <br /><br />
-        <br /><br />
-        <br /><br />
-        <br /><br />
-        <Footer />
+
+    <div className="app">
+      <Navbar session={session} />
+      <div className="pages">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/gallery" element={<Gallery />} />
+          <Route path="/apply" element={<Apply />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/shape_edit" element={<Shape />} />
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </div>
-    </Router>
+      {/* this is yucky practice */}
+      <br /><br />
+      <br /><br />
+      <br /><br />
+      <br /><br />
+      <Footer />
+    </div>
+
   )
 }
 

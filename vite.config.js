@@ -9,19 +9,21 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
     rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, "index.html"),
-      },
       output: {
-        entryFileNames: `assets/[name].js`,
-        chunkFileNames: `assets/[name].js`,
-        assetFileNames: `assets/[name].[ext]`,
+        // Ensure proper JavaScript file extensions
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash].[ext]",
       },
     },
   },
+  // Ensure proper JSX handling
+  esbuild: {
+    jsxInject: `import React from 'react'`,
+    loader: "jsx",
+  },
+  // Ensure proper file resolution
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    extensions: [".js", ".jsx", ".json"],
   },
 });
