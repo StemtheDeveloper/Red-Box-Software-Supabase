@@ -55,11 +55,19 @@ const Home = () => {
         </ul>
       </section>
 
+      {/* Admin Section */}
+      <section>
+        <h2>Admin</h2>
+        <a href="/admin">Go to Admin Page</a>
+      </section>
+
       {/* Random shape */}
 
-      <div className="shape">
-        <img id='gpc' src={GPC} alt="A weird animation" />
-      </div>
+      <section>
+        <div className="shape">
+          <img id='clipPath' src={GPC} alt="A weird animation" />
+        </div>
+      </section>
     </div>
   )
 }

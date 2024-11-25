@@ -13,6 +13,7 @@ import Apply from './pages/Apply'
 import Auth from './pages/AuthComponent.jsx'
 import Shape from './pages/clip-path-editor.jsx'
 import NotFound from './pages/NotFound'
+import Admin from './pages/Admin'
 import './App.css'
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
           <Route path="/apply" element={<Apply />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/shape_edit" element={<Shape />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/404" element={<NotFound />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
