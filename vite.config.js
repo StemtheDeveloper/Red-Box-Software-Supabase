@@ -4,7 +4,7 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/red-box-software.com/",
+  base: "/Red-Box-Software-Supabase/",
   build: {
     outDir: "dist",
     assetsDir: "assets",
