@@ -35,6 +35,7 @@ const ClipPathEditor = () => {
   const [panStart, setPanStart] = useState(null);
   const [image, setImage] = useState(null);
   const [imageURL, setImageURL] = useState(null);
+  const [isInstructionsOpen, setisInstructionsOpen] = useState(false);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -304,8 +305,16 @@ const ClipPathEditor = () => {
 
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const viewBox = {
+      x: 50 - 50 / zoom + viewportPosition.x,
+      y: 50 - 50 / zoom + viewportPosition.y,
+      width: 100 / zoom,
+      height: 100 / zoom
+    };
+
+    // Convert click coordinates to SVG space
+    const x = viewBox.x + (e.clientX - rect.left) * viewBox.width / rect.width;
+    const y = viewBox.y + (e.clientY - rect.top) * viewBox.height / rect.height;
 
     // Find the closest point on the path
     const closestPoint = findClosestPointOnPath(x, y);
@@ -742,7 +751,55 @@ const ClipPathEditor = () => {
           </div>
         </div>
 
+
+
+        {isInstructionsOpen && (
+          <div className="toolInstructions">
+            <h2 className="title">Instructions</h2>
+            <div className="instCont">
+
+              <ul>
+                <li>- Click and drag to move points</li>
+                <li>- Hold Shift and to place a new point on the path.
+                </li>
+                <li>- Hold Alt and click on a point to toggle curve.
+                </li>
+                <li>- Press Delete/Backspace to delete selected points.</li>
+                <li>- Press Ctrl/Cmd + Z to undo and Ctrl/Cmd + Shift + Z to redo.</li>
+                <li>- Hold Space to pan the view.</li>
+                <li>- Use the mouse wheel to zoom in and out.</li>
+                <li>- Hold Ctrl/Cmd and click on a point to select/deselect it.</li>
+
+              </ul>
+
+              <p className='text'>
+
+
+
+
+
+              </p>
+              <button
+                id='closeInstructions'
+                onClick={() => setisInstructionsOpen(false)}
+                className="closeButton"
+              >
+                X
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="controls">
+
+          <button
+            id='openInstructions'
+            onClick={() => setisInstructionsOpen(!isInstructionsOpen)}
+            className="button"
+          >
+            {isInstructionsOpen ? 'Close' : 'Open'} Instructions
+          </button>
+
           <div className="control-group">
             <label className="label">Rotation (degrees)</label>
             <input
@@ -780,20 +837,21 @@ const ClipPathEditor = () => {
               <Copy className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      </div>
 
-      <div className="bottomSection">
-        <div className="previewShape">
-          <div className='previewImage' style={{
-            backgroundImage: imageURL ? `url(${imageURL})` : 'linear-gradient(135deg, #ff2c3c, #ff6f2c)',
-            clipPath: `path('${generatePreviewPath()}')`
-          }} />
-        </div>
+          <div className="bottomSection">
+            <p>Preview Image</p>
+            <div className="previewShape">
+              <div className='previewImage' style={{
+                backgroundImage: imageURL ? `url(${imageURL})` : 'linear-gradient(135deg, #ff2c3c, #ff6f2c)',
+                clipPath: `path('${generatePreviewPath()}')`
+              }} />
+            </div>
 
-        <div className="image-input">
-          <label className="label">Upload Image</label>
-          <input type="file" accept="image/*" onChange={handleImageChange} />
+            <div className="image-input">
+              <label className="label">Upload Image</label>
+              <input type="file" accept="image/*" onChange={handleImageChange} />
+            </div>
+          </div>
         </div>
       </div>
     </div >
