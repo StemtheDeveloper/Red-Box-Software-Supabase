@@ -1,10 +1,24 @@
-
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 const Admin = () => {
     const [file, setFile] = useState(null)
     const [message, setMessage] = useState('')
+    const [user, setUser] = useState(null)
+
+    useEffect(() => {
+        const getSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session) {
+                setUser(session.user)
+            } else {
+                window.location.href = '/404';
+
+
+            }
+        }
+        getSession()
+    }, [])
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0])
@@ -16,7 +30,6 @@ const Admin = () => {
             return
         }
         try {
-            const user = supabase.auth.user()
             if (user.email !== 'stiaan44@gmail.com') {
                 setMessage('Access denied.')
                 alert('Access denied.')
@@ -30,9 +43,17 @@ const Admin = () => {
         }
     }
 
+    if (!user) {
+        return <p>{message}</p>
+    }
+
     return (
         <div className='admin-page'>
             <h1>Admin Page</h1>
+            <div className='profile-image'>
+                <img src={user.user_metadata.avatar_url} alt="Profile" />
+                <p>{user.email}</p>
+            </div>
             <input type="file" onChange={handleFileChange} />
             <button onClick={handleUpload}>Upload</button>
             <p>{message}</p>

@@ -1,0 +1,248 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #111;
+  max-width: 95vw;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 24px;
+  padding: 0 16px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  margin: 0;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+}
+
+.button-group-2 {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  max-width: 40px;
+  margin: 1 0px;
+  gap: 8px;
+}
+
+.button {
+  padding: 8px;
+  background-color: #ff2c3c;
+  border-radius: 4px;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.button:hover {
+  background-color: #ff6f2c;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  gap: 24px;
+  background-color: #111;
+  width: 100%;
+  max-width: 1400px;
+}
+
+.svg-container {
+  position: relative;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.svg-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#svg1 {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+#svg1:active {
+  cursor: grabbing;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #333;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input {
+  background-color: #2a2a2a;
+  color: white;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px;
+  width: 90%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #ff2c3c;
+}
+
+.label {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.code-preview {
+  background-color: #2a2a2a;
+  border-radius: 4px;
+  padding: 12px;
+  font-family: monospace;
+  color: white;
+  font-size: 12px;
+  width: 90%;
+  overflow-x: auto;
+}
+
+.zoom-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  background-color: rgba(26, 26, 26, 0.8);
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #333;
+}
+
+.zoom-button {
+  background-color: #2a2a2a;
+  color: white;
+  border: 1px solid #444;
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.zoom-button:hover {
+  background-color: #3a3a3a;
+}
+
+.zoom-level {
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+/* cool shape */
+/* .previewShape {
+  width: 200px;
+  height: 200px;
+  background-color: #ff2c3c;
+  clip-path: path(
+    "M 100.50104417800904 18.82076416015625 L 51.71788330078125 38.05003051757812L 73.05681457519532 70.95559234619141L 10 90L 100.50104417800904 18.82076416015625Z"
+  );
+} */
+
+.previewShape {
+  width: 200px;
+  height: 200px;
+  margin-top: 20px;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.previewShape > div {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #ff2c3c, #ff6f2c);
+  transition: clip-path 0.2s ease;
+  scale: 2;
+  transform: translate(25%, 25%);
+}
+
+.bottomSection {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}
+
+.previewShape > .previewImage {
+  width: 50%;
+  height: 50%;
+  background-size: cover;
+  background-position: center;
+}
+
+.image-input {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.image-input > input {
+  width: 100%;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .editor-grid {
+    grid-template-columns: 1fr;
+  }
+  .svg-container {
+    max-width: 90vw;
+  }
+  .controls {
+    max-width: 85vw;
+  }
+}

@@ -8,6 +8,7 @@ function Navbar({ session }) {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    window.location.href = '/';
   };
 
   const toggleMenu = () => {
@@ -30,8 +31,10 @@ function Navbar({ session }) {
         <Link to="/projects" onClick={closeMenu}>Projects</Link>
         <Link to="/gallery" onClick={closeMenu}>Gallery</Link>
         <Link to="/contact" onClick={closeMenu}>Contact</Link>
-        <Link to="/apply" onClick={closeMenu}>Apply</Link>
         <Link to="/shape_edit" onClick={closeMenu}>Shape</Link>
+        {session && session.user.email === 'stiaan44@gmail.com' && (
+          <Link to="/admin" onClick={closeMenu}>Admin</Link>
+        )}
         {session ? (
           <button onClick={() => { handleSignOut(); closeMenu(); }}>Sign Out</button>
         ) : (

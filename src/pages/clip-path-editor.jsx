@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Copy, Square, Hexagon, Triangle, Circle } from 'lucide-react'
+import '../styles/style.css'
 
 const ClipPathEditor = () => {
 
@@ -13,11 +14,12 @@ const ClipPathEditor = () => {
   const [points, setPoints] = useState(initialPoints)
 
   const [dragStartPoints, setDragStartPoints] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const [selectedPoint, setSelectedPoint] = useState(null)
   const [controlPoint, setControlPoint] = useState(null)
   const [rotation, setRotation] = useState(0)
-  const [scale, setScale] = useState(100)
+  const [scale, setScale] = useState(80)
   const [shape, setShape] = useState('custom')
   const svgRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false);
@@ -26,6 +28,22 @@ const ClipPathEditor = () => {
   const [selectedPoints, setSelectedPoints] = useState(new Set());
   const [history, setHistory] = useState([initialPoints]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [viewportPosition, setViewportPosition] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [spacePressed, setSpacePressed] = useState(false);
+  const [panStart, setPanStart] = useState(null);
+  const [image, setImage] = useState(null);
+  const [imageURL, setImageURL] = useState(null);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImage(file);
+      setImageURL(url);
+    }
+  };
 
   const presetShapes = {
     square: [
@@ -48,10 +66,26 @@ const ClipPathEditor = () => {
       { x: 0, y: 50, curve: false }
     ],
     circle: [
-      { x: 50, y: 0, curve: true, control1: { x: 85, y: 0 }, control2: { x: 100, y: 35 } },
-      { x: 50, y: 100, curve: true, control1: { x: 100, y: 65 }, control2: { x: 85, y: 100 } },
-      { x: 50, y: 100, curve: true, control1: { x: 15, y: 100 }, control2: { x: 0, y: 65 } },
-      { x: 50, y: 0, curve: true, control1: { x: 0, y: 35 }, control2: { x: 15, y: 0 } }
+      {
+        x: 50, y: 0, curve: true,
+        control1: { x: 22.5, y: 0 },    // Left control point
+        control2: { x: 77.5, y: 0 }     // Right control point
+      },
+      {
+        x: 100, y: 50, curve: true,
+        control1: { x: 100, y: 22.5 },  // Top control point
+        control2: { x: 100, y: 77.5 }   // Bottom control point
+      },
+      {
+        x: 50, y: 100, curve: true,
+        control1: { x: 77.5, y: 100 },  // Right control point
+        control2: { x: 22.5, y: 100 }   // Left control point
+      },
+      {
+        x: 0, y: 50, curve: true,
+        control1: { x: 0, y: 77.5 },    // Bottom control point
+        control2: { x: 0, y: 22.5 }     // Top control point
+      }
     ]
   }
 
@@ -66,6 +100,10 @@ const ClipPathEditor = () => {
     const handleKeyDown = (e) => {
       if (e.key === 'Shift') setShiftPressed(true);
       if (e.key === 'Alt') setAltPressed(true);
+      if (e.key === ' ') {
+        e.preventDefault();
+        setSpacePressed(true);
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedPoints.size > 0) {
         e.preventDefault();
         deleteSelectedPoints();
@@ -83,6 +121,10 @@ const ClipPathEditor = () => {
     const handleKeyUp = (e) => {
       if (e.key === 'Shift') setShiftPressed(false);
       if (e.key === 'Alt') setAltPressed(false);
+      if (e.key === ' ') {
+        setSpacePressed(false);
+        setIsPanning(false);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -93,6 +135,20 @@ const ClipPathEditor = () => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [selectedPoints, historyIndex, history]);
+
+  const convertToSVGCoordinates = (clientX, clientY) => {
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    const point = svg.createSVGPoint();
+    point.x = clientX - rect.left;
+    point.y = clientY - rect.top;
+    const svgPoint = point.matrixTransform(svg.getScreenCTM().inverse());
+
+    return {
+      x: svgPoint.x + (50 - 50 / zoom + viewportPosition.x),
+      y: svgPoint.y + (50 - 50 / zoom + viewportPosition.y)
+    };
+  };
 
   const saveToHistory = (newPoints) => {
     const pointsCopy = JSON.parse(JSON.stringify(newPoints));
@@ -164,9 +220,39 @@ const ClipPathEditor = () => {
   const handleWheel = (e) => {
     if (svgRef.current.contains(e.target)) {
       e.preventDefault();
-      const newScale = Math.max(10, Math.min(200, scale - e.deltaY * 0.1));
-      setScale(newScale);
+
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.01, zoom * zoomFactor);
+
+      // Get mouse position relative to SVG
+      const rect = svgRef.current.getBoundingClientRect();
+      const mouseX = ((e.clientX - rect.left) / rect.width) * 100;
+      const mouseY = ((e.clientY - rect.top) / rect.height) * 100;
+
+      // Calculate new viewport position
+      const dx = (mouseX - 50) * (1 - zoomFactor);
+      const dy = (mouseY - 50) * (1 - zoomFactor);
+
+      setViewportPosition(prev => ({
+        x: prev.x - dx / newZoom,
+        y: prev.y - dy / newZoom
+      }));
+
+      setZoom(newZoom);
     }
+  };
+
+  const handleZoomIn = () => {
+    setZoom(prev => prev * 1.1);
+  };
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(0.01, prev * 0.9));
+  };
+
+  const handleZoomReset = () => {
+    setZoom(1);
+    setViewportPosition({ x: 0, y: 0 });
   };
 
 
@@ -180,16 +266,36 @@ const ClipPathEditor = () => {
         svg.removeEventListener('wheel', handleWheel);
       }
     };
-  }, [scale]);
+  }, [zoom, viewportPosition]);
 
-  const handleMouseDown = (index, isControl, controlNumber) => {
-    // Don't save initial state to history, just keep it for reference
-    setDragStartPoints(JSON.parse(JSON.stringify(points)));
-    setIsDragging(true);
-    if (isControl) {
-      setControlPoint({ pointIndex: index, controlNumber });
-    } else {
-      setSelectedPoint(index);
+  const handleMouseDown = (e, index, isControl, controlNumber) => {
+    if (spacePressed) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      return;
+    }
+
+    if (index !== undefined) {
+      setDragStartPoints(JSON.parse(JSON.stringify(points)));
+      setIsDragging(true);
+
+      const svgPoint = convertToSVGCoordinates(e.clientX, e.clientY);
+      const point = points[index];
+
+      if (isControl) {
+        const controlPoint = controlNumber === 1 ? point.control1 : point.control2;
+        setDragOffset({
+          x: svgPoint.x - controlPoint.x,
+          y: svgPoint.y - controlPoint.y
+        });
+        setControlPoint({ pointIndex: index, controlNumber });
+      } else {
+        setDragOffset({
+          x: svgPoint.x - point.x,
+          y: svgPoint.y - point.y
+        });
+        setSelectedPoint(index);
+      }
     }
   };
 
@@ -266,44 +372,41 @@ const ClipPathEditor = () => {
   };
 
   const handleMouseMove = (e) => {
-    if (selectedPoint === null && controlPoint === null) return;
+    if (isPanning && panStart) {
+      const dx = (e.clientX - panStart.x) / (svgRef.current.getBoundingClientRect().width / 100 * zoom);
+      const dy = (e.clientY - panStart.y) / (svgRef.current.getBoundingClientRect().height / 100 * zoom);
 
-    const svg = svgRef.current;
-    const rect = svg.getBoundingClientRect();
+      setViewportPosition(prev => ({
+        x: prev.x - dx,
+        y: prev.y - dy
+      }));
 
-    // Calculate the center of the SVG
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-
-    // Get mouse position relative to SVG
-    let x = ((e.clientX - rect.left - centerX) / (rect.width * scale / 100)) * 100 + 50;
-    let y = ((e.clientY - rect.top - centerY) / (rect.height * scale / 100)) * 100 + 50;
-
-    if (rotation !== 0) {
-      const radians = (-rotation * Math.PI) / 180;
-      const rotatedX = x - 50;
-      const rotatedY = y - 50;
-      x = (rotatedX * Math.cos(radians) - rotatedY * Math.sin(radians)) + 50;
-      y = (rotatedX * Math.sin(radians) + rotatedY * Math.cos(radians)) + 50;
+      setPanStart({ x: e.clientX, y: e.clientY });
+      return;
     }
 
-    const newX = Math.min(100, Math.max(0, x));
-    const newY = Math.min(100, Math.max(0, y));
+    if (selectedPoint === null && controlPoint === null) return;
+
+    const svgPoint = convertToSVGCoordinates(e.clientX, e.clientY);
+
+    // Calculate the actual point position by removing the drag offset
+    const x = svgPoint.x - dragOffset.x;
+    const y = svgPoint.y - dragOffset.y;
 
     const newPoints = points.map((point, index) => {
       if (controlPoint && index === controlPoint.pointIndex) {
         return {
           ...point,
-          [`control${controlPoint.controlNumber}`]: { x: newX, y: newY },
+          [`control${controlPoint.controlNumber}`]: { x, y },
           curve: true
         };
       } else if (selectedPoint !== null && index === selectedPoint) {
-        const deltaX = newX - point.x;
-        const deltaY = newY - point.y;
+        const deltaX = x - point.x;
+        const deltaY = y - point.y;
         return {
           ...point,
-          x: newX,
-          y: newY,
+          x,
+          y,
           control1: point.control1 ? {
             x: point.control1.x + deltaX,
             y: point.control1.y + deltaY
@@ -317,13 +420,17 @@ const ClipPathEditor = () => {
       return point;
     });
 
-    // Just update points without saving to history during drag
     setPoints(newPoints);
   };
 
   const handleMouseUp = () => {
+    if (isPanning) {
+      setIsPanning(false);
+      setPanStart(null);
+      return;
+    }
+
     if (isDragging && dragStartPoints) {
-      // Only save to history if points actually changed
       if (JSON.stringify(points) !== JSON.stringify(dragStartPoints)) {
         saveToHistory(points);
       }
@@ -340,31 +447,44 @@ const ClipPathEditor = () => {
   const toggleCurve = (index) => {
     if (altPressed) {
       const newPoints = points.map((point, i) => {
+        const nextIndex = (i + 1) % points.length;
+        const prevIndex = (i - 1 + points.length) % points.length;
+        const currentPoint = points[index];
+        const dx = 20;
+        const newCurve = !currentPoint.curve;
+
         if (i === index) {
-          const newCurve = !point.curve;
-          const dx = 20; // Distance for control points
-
-          let control1 = point.control1;
-          let control2 = point.control2;
-
-          if (newCurve) {
-            if (!control1) {
-              control1 = { x: point.x - dx, y: point.y };
-            }
-            if (!control2) {
-              control2 = { x: point.x + dx, y: point.y };
-            }
-          }
-
+          // Toggle curve state for clicked point
           return {
             ...point,
             curve: newCurve,
-            control1: newCurve ? control1 : null,
-            control2: newCurve ? control2 : null
+            control1: newCurve ?
+              (i < 3 ? { x: point.x - dx, y: point.y } : { x: point.x + dx, y: point.y }) : null,
+            control2: newCurve ?
+              (i < 3 ? { x: point.x + dx, y: point.y } : { x: point.x - dx, y: point.y }) : null
+          };
+        }
+        else if (i === prevIndex) {
+          // Update previous point's curve state
+          return {
+            ...point,
+            curve: points[index].curve,
+            control1: point.control1,
+            control2: !currentPoint.curve ? { x: point.x - dx, y: point.y } : null
+          };
+        }
+        else if (i === nextIndex) {
+          // Update next point's curve state
+          return {
+            ...point,
+            curve: points[index].curve,
+            control1: !currentPoint.curve ? { x: point.x + dx, y: point.y } : null,
+            control2: point.control2
           };
         }
         return point;
       });
+
       saveToHistory(newPoints);
     }
   };
@@ -402,10 +522,42 @@ const ClipPathEditor = () => {
     return `clip-path: path('${generatePath()}');`
   }
 
+  const generatePreviewPath = () => {
+    let path = '';
+    points.forEach((point, index) => {
+      const nextPoint = points[(index + 1) % points.length];
+      const transformedPoint = transformPoint(point);
+      const transformedNext = transformPoint(nextPoint);
+      const transformedControl2 = transformPoint(point.control2);
+      const transformedControl1Next = transformPoint(nextPoint.control1);
+
+      if (index === 0) {
+        path += `M ${transformedPoint.x}% ${transformedPoint.y}%`;
+      }
+
+      if (nextPoint.curve) {
+        path += ` C ${transformedControl2?.x || transformedPoint.x}% ${transformedControl2?.y || transformedPoint.y}%,`;
+        path += ` ${transformedControl1Next?.x || transformedNext.x}% ${transformedControl1Next?.y || transformedNext.y}%,`;
+        path += ` ${transformedNext.x}% ${transformedNext.y}%`;
+      } else {
+        path += ` L ${transformedNext.x}% ${transformedNext.y}%`;
+      }
+    });
+    path += ' Z';
+    return path;
+  };
+
   useEffect(() => {
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
   }, [])
+
+  useEffect(() => {
+    const previewElement = document.querySelector('.previewShape > div');
+    if (previewElement) {
+      previewElement.style.clipPath = `path('${generatePath()}')`;
+    }
+  }, [points, rotation, scale]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateClipPath())
@@ -422,7 +574,7 @@ const ClipPathEditor = () => {
     setShape(newShape);
     saveToHistory(newPoints);
     setRotation(0);
-    setScale(100);
+    setScale(80);
   };
 
   const addPoint = () => {
@@ -445,274 +597,208 @@ const ClipPathEditor = () => {
   const transformPoint = (point, isControl = false) => {
     if (!point) return null;
 
-    const radians = (rotation * Math.PI) / 180;
-    const centerX = 50;
-    const centerY = 50;
+    const scaledX = ((point.x - 50) * scale) / 100 + 50;
+    const scaledY = ((point.y - 50) * scale) / 100 + 50;
 
-    // Translate to origin
-    const translatedX = point.x - centerX;
-    const translatedY = point.y - centerY;
+    if (rotation !== 0) {
+      const radians = (rotation * Math.PI) / 180;
+      const rotatedX = (scaledX - 50) * Math.cos(radians) - (scaledY - 50) * Math.sin(radians) + 50;
+      const rotatedY = (scaledX - 50) * Math.sin(radians) + (scaledY - 50) * Math.cos(radians) + 50;
+      return { x: rotatedX, y: rotatedY };
+    }
 
-    // Rotate
-    const rotatedX = translatedX * Math.cos(radians) - translatedY * Math.sin(radians);
-    const rotatedY = translatedX * Math.sin(radians) + translatedY * Math.cos(radians);
-
-    // Scale
-    const scaledX = (rotatedX * scale) / 100;
-    const scaledY = (rotatedY * scale) / 100;
-
-    // Translate back
-    return {
-      x: scaledX + centerX,
-      y: scaledY + centerY
-    };
+    return { x: scaledX, y: scaledY };
   };
 
-  const styles = {
-    container: {
-      display: 'flex',
-      flexDirection: 'column',
-
-      backgroundColor: '#111',
-      maxWidth: '95vw',
-
-    },
-    header: {
-      marginBottom: '24px',
-    },
-    title: {
-      fontSize: '24px',
-      fontWeight: 'bold',
-      marginBottom: '16px',
-      color: '#fff',
-    },
-    buttonGroup: {
-      display: 'flex',
-      marginLeft: '10px',
-      gap: '8px',
-    },
-    button: {
-      padding: '8px',
-      backgroundColor: '#ff2c3c',
-      borderRadius: '4px',
-      border: 'none',
-    },
-    buttonHover: {
-      backgroundColor: '#ff6f2c',
-    },
-    editorGrid: {
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#111',
-      gap: '16px',
-    },
-    svgContainer: {
-      border: '1px solid #e5e7eb',
-      padding: '16px',
-    },
-    controls: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-      marginLeft: '10px',
-    },
-    input: {
-      display: 'flex',
-      width: '90%',
-      padding: '8px',
-      border: '1px solid #e5e7eb',
-      borderRadius: '4px'
-    },
-    label: {
-      color: '#fff',
-    },
-    codePreview: {
-      width: '90%',
-      padding: '16px',
-      backgroundColor: '#f3f4f6',
-      borderRadius: '4px',
-      WrapText: 'wrap',
-    },
-    preview: {
-      marginTop: '24px',
-      marginLeft: '10px',
-
-    },
-    previewGrid: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '16px',
-    },
-    previewBox: {
-      width: '256px',
-      height: '256px',
-      background: 'linear-gradient(to right, #ff2c3c, #ff6f2c)',
-    },
-    previewImage: {
-      width: '128px',
-      height: '128px',
-      objectFit: 'cover',
-    },
-  }
-
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Clip Path Editor</h1>
-        <div style={styles.buttonGroup}>
-          <button onClick={() => handleShapeChange('square')} style={styles.button}>
-            <Square className="w-6 h-6" />
-          </button>
-          <button onClick={() => handleShapeChange('triangle')} style={styles.button}>
-            <Triangle className="w-6 h-6" />
-          </button>
-          <button onClick={() => handleShapeChange('hexagon')} style={styles.button}>
-            <Hexagon className="w-6 h-6" />
-          </button>
-          <button onClick={() => handleShapeChange('circle')} style={styles.button}>
-            <Circle className="w-6 h-6" />
-          </button>
-        </div>
+    <div className="container">
+      <div className="header">
+        <h1 className="title">Clip Path Editor</h1>
+
       </div>
 
-      <div style={styles.editorGrid}>
-        <div style={styles.svgContainer}>
-          <svg
-            ref={svgRef}
-            viewBox="0 0 100 100"
-            onMouseMove={handleMouseMove}
-            onClick={handleSvgClick}
-            className="w-full h-full"
-            style={{ cursor: isDragging ? 'grabbing' : shiftPressed ? 'crosshair' : 'grab' }}
-          >
-            <path
-              d={generatePath()}
-              fill="rgba(255, 44, 60, 0.5)"
-              stroke="#ff2c3c"
-              strokeWidth="1"
 
-            />
-            {points.map((point, index) => {
-              const transformedPoint = transformPoint(point);
-              const control1 = transformPoint(point.control1, true);
-              const control2 = transformPoint(point.control2, true);
 
-              return (
-                <g key={index}>
-                  <circle
-                    cx={transformedPoint.x}
-                    cy={transformedPoint.y}
-                    r="2"
-                    fill={selectedPoints.has(index) ? "#ff6f2c" : "#ff2c3c"}
-                    stroke={selectedPoints.has(index) ? "#fff" : "#fff"}
-                    strokeWidth="0.5"
-                    cursor="pointer"
-                    onMouseDown={(e) => {
-                      if (!shiftPressed) handleMouseDown(index);
-                    }}
-                    onClick={(e) => {
-                      if (e.ctrlKey || e.metaKey) {
-                        togglePointSelection(index, e);
-                      } else {
-                        toggleCurve(index);
-                      }
-                    }}
-                  />
-                  {point.curve && (
-                    <>
-                      <line
-                        x1={transformedPoint.x}
-                        y1={transformedPoint.y}
-                        x2={control1?.x}
-                        y2={control1?.y}
-                        stroke="#ff2c3c"
-                        strokeWidth="0.5"
-                        strokeDasharray="2,2"
-                      />
-                      <circle
-                        cx={control1?.x}
-                        cy={control1?.y}
-                        r="1.5"
-                        fill="#ff2c3c"
-                        cursor="pointer"
-                        onMouseDown={() => handleMouseDown(index, true, 1)}
-                      />
-                      <line
-                        x1={transformedPoint.x}
-                        y1={transformedPoint.y}
-                        x2={control2?.x}
-                        y2={control2?.y}
-                        stroke="#ff2c3c"
-                        strokeWidth="0.5"
-                        strokeDasharray="2,2"
-                      />
-                      <circle
-                        cx={control2?.x}
-                        cy={control2?.y}
-                        r="1.5"
-                        fill="#ff2c3c"
-                        cursor="pointer"
-                        onMouseDown={() => handleMouseDown(index, true, 2)}
-                      />
-                    </>
-                  )}
-                  {/* <text
-                    x={transformedPoint.x + 2}
-                    y={transformedPoint.y - 2}
-                    fontSize="4"
-                    fill="#ff2c3c"
-                  >
-                    {index + 1}
-                  </text> */}
-                </g>
-              );
-            })}
-          </svg>
+      <div className="editor-grid">
+        <div className="svg-container">
+          <div className="svg-wrapper">
+            <div className="button-group-2">
+              <button onClick={() => handleShapeChange('square')} className="button">
+                <Square className="w-6 h-6" />
+              </button>
+              <button onClick={() => handleShapeChange('triangle')} className="button">
+                <Triangle className="w-6 h-6" />
+              </button>
+              <button onClick={() => handleShapeChange('hexagon')} className="button">
+                <Hexagon className="w-6 h-6" />
+              </button>
+              <button onClick={() => handleShapeChange('circle')} className="button">
+                <Circle className="w-6 h-6" />
+              </button>
+            </div>
+            <svg
+              id='svg1'
+              ref={svgRef}
+              viewBox={`${50 - 50 / zoom + viewportPosition.x} ${50 - 50 / zoom + viewportPosition.y} ${100 / zoom} ${100 / zoom}`}
+              onMouseMove={handleMouseMove}
+              onMouseDown={(e) => handleMouseDown(e)}
+              onMouseUp={handleMouseUp}
+              onClick={handleSvgClick}
+              className="w-full h-full"
+              style={{
+                cursor: isPanning ? 'grabbing' :
+                  isDragging ? 'grabbing' :
+                    spacePressed ? 'grab' :
+                      shiftPressed ? 'crosshair' : 'default'
+              }}
+            >
+              <path
+                d={generatePath()}
+                fill="rgba(255, 44, 60, 0.5)"
+                stroke="#ff2c3c"
+                strokeWidth="1"
+              />
+              {points.map((point, index) => {
+                const transformedPoint = transformPoint(point);
+                const control1 = transformPoint(point.control1, true);
+                const control2 = transformPoint(point.control2, true);
+
+                return (
+                  <g key={index}>
+                    <circle
+                      cx={transformedPoint.x}
+                      cy={transformedPoint.y}
+                      r="2"
+                      fill={selectedPoints.has(index) ? "#ff6f2c" : "#ff2c3c"}
+                      stroke={selectedPoints.has(index) ? "#fff" : "#fff"}
+                      strokeWidth="0.5"
+                      cursor="pointer"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        if (!shiftPressed && !spacePressed) handleMouseDown(e, index);
+                      }}
+                      onClick={(e) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          togglePointSelection(index, e);
+                        } else {
+                          toggleCurve(index);
+                        }
+                      }}
+                    />
+                    {point.curve && (
+                      <>
+                        <line
+                          x1={transformedPoint.x}
+                          y1={transformedPoint.y}
+                          x2={control1?.x}
+                          y2={control1?.y}
+                          stroke="#ff2c3c"
+                          strokeWidth="0.5"
+                          strokeDasharray="2,2"
+                        />
+                        <circle
+                          cx={control1?.x}
+                          cy={control1?.y}
+                          r="1.5"
+                          fill="#ff2c3c"
+                          cursor="pointer"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            if (!shiftPressed && !spacePressed) handleMouseDown(e, index, true, 1);
+                          }}
+                        />
+                        <line
+                          x1={transformedPoint.x}
+                          y1={transformedPoint.y}
+                          x2={control2?.x}
+                          y2={control2?.y}
+                          stroke="#ff2c3c"
+                          strokeWidth="0.5"
+                          strokeDasharray="2,2"
+                        />
+                        <circle
+                          cx={control2?.x}
+                          cy={control2?.y}
+                          r="1.5"
+                          fill="#ff2c3c"
+                          cursor="pointer"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            if (!shiftPressed && !spacePressed) handleMouseDown(e, index, true, 2);
+                          }}
+                        />
+                      </>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+          <div className="zoom-controls">
+            <button onClick={handleZoomOut} className="zoom-button">-</button>
+            <div className="zoom-level">{Math.round(zoom * 100)}%</div>
+            <button onClick={handleZoomIn} className="zoom-button">+</button>
+            <button onClick={handleZoomReset} className="zoom-button">↺</button>
+          </div>
         </div>
 
-        <div style={styles.controls}>
-          <div>
-            <label style={styles.label} className="block mb-1">Rotation (degrees)</label>
+        <div className="controls">
+          <div className="control-group">
+            <label className="label">Rotation (degrees)</label>
             <input
               type="number"
               value={rotation}
               onChange={(e) => setRotation(Number(e.target.value))}
-              style={styles.input}
+              className="input"
             />
           </div>
 
-          <div>
-            <label style={styles.label} className="block mb-1">Scale (%)</label>
+          <div className="control-group">
+            <label className="label">Scale (%)</label>
             <input
               type="number"
               value={scale}
               onChange={(e) => setScale(Number(e.target.value))}
-              style={styles.input}
+              className="input"
             />
           </div>
 
-          <div style={styles.buttonGroup}>
-            <button onClick={addPoint} style={{ ...styles.button, backgroundColor: '#ff2c3c' }}>
-              Add Point
-            </button>
+          <div className="button-group">
+            <button onClick={addPoint} className="button">Add Point</button>
             {points.length > 3 && (
-              <button onClick={() => removePoint(points.length - 1)} style={{ ...styles.button, backgroundColor: '#ff2c3c' }}>
+              <button onClick={() => removePoint(points.length - 1)} className="button">
                 Remove Point
               </button>
             )}
           </div>
 
-          <div style={styles.codePreview}>
-            <pre style={{ textWrap: 'wrap' }} className="whitespace-pre-wrap">{generateClipPath()}</pre>
-            <button onClick={copyToClipboard} style={{ ...styles.button, backgroundColor: '#ff2c3c', marginTop: '8px' }}>
+
+
+          <div className="code-preview">
+            <pre>{generateClipPath()}</pre>
+            <button onClick={copyToClipboard} className="button" style={{ marginTop: '8px' }}>
               <Copy className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
 
-    </div>
-  )
-}
+      <div className="bottomSection">
+        <div className="previewShape">
+          <div className='previewImage' style={{
+            backgroundImage: imageURL ? `url(${imageURL})` : 'linear-gradient(135deg, #ff2c3c, #ff6f2c)',
+            clipPath: `path('${generatePreviewPath()}')`
+          }} />
+        </div>
+
+        <div className="image-input">
+          <label className="label">Upload Image</label>
+          <input type="file" accept="image/*" onChange={handleImageChange} />
+        </div>
+      </div>
+    </div >
+  );
+};
+
 
 export default ClipPathEditor

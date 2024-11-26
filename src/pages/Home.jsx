@@ -55,12 +55,6 @@ const Home = () => {
         </ul>
       </section>
 
-      {/* Admin Section */}
-      <section>
-        <h2>Admin</h2>
-        <a href="/admin">Go to Admin Page</a>
-      </section>
-
       {/* Random shape */}
 
       <section>

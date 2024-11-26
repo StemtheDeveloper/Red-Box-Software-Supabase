@@ -9,7 +9,6 @@ import Products from './pages/Products'
 import Projects from './pages/Projects'
 import Contact from './pages/Contact'
 import Gallery from './pages/Gallery'
-import Apply from './pages/Apply'
 import Auth from './pages/AuthComponent.jsx'
 import Shape from './pages/clip-path-editor.jsx'
 import NotFound from './pages/NotFound'
@@ -47,7 +46,6 @@ function App() {
           <Route path="/projects" element={<Projects />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/gallery" element={<Gallery />} />
-          <Route path="/apply" element={<Apply />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/shape_edit" element={<Shape />} />
           <Route path="/admin" element={<Admin />} />
