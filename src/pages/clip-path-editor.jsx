@@ -619,6 +619,40 @@ const ClipPathEditor = () => {
     return { x: scaledX, y: scaledY };
   };
 
+  const exportSVG = () => {
+    const svgContent = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 100 100"
+    width="100"
+    height="100"
+  >
+    <g transform="
+      translate(50 50) 
+      rotate(${rotation}) 
+      scale(${scale / 100}) 
+      translate(-50 -50)
+    ">
+      <path
+        d="${generatePath()}"
+        fill="currentColor"
+      />
+    </g>
+  </svg>`;
+
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'clippath.svg';
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="container">
       <div className="header">
@@ -644,6 +678,7 @@ const ClipPathEditor = () => {
               <button onClick={() => handleShapeChange('circle')} className="button">
                 <Circle className="w-6 h-6" />
               </button>
+              <button onClick={exportSVG} className='button' title='save svg'>svg</button>
             </div>
             <svg
               id='svg1'
