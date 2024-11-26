@@ -661,86 +661,105 @@ const ClipPathEditor = () => {
                       shiftPressed ? 'crosshair' : 'default'
               }}
             >
+              {/* First render path */}
               <path
                 d={generatePath()}
                 fill="rgba(255, 44, 60, 0.5)"
                 stroke="#ff2c3c"
                 strokeWidth="1"
               />
-              {points.map((point, index) => {
-                const transformedPoint = transformPoint(point);
-                const control1 = transformPoint(point.control1, true);
-                const control2 = transformPoint(point.control2, true);
 
-                return (
-                  <g key={index}>
-                    <circle
-                      cx={transformedPoint.x}
-                      cy={transformedPoint.y}
-                      r="2"
-                      fill={selectedPoints.has(index) ? "#ff6f2c" : "#ff2c3c"}
-                      stroke={selectedPoints.has(index) ? "#fff" : "#fff"}
-                      strokeWidth="0.5"
-                      cursor="pointer"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        if (!shiftPressed && !spacePressed) handleMouseDown(e, index);
-                      }}
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          togglePointSelection(index, e);
-                        } else {
-                          toggleCurve(index);
-                        }
-                      }}
-                    />
-                    {point.curve && (
-                      <>
-                        <line
-                          x1={transformedPoint.x}
-                          y1={transformedPoint.y}
-                          x2={control1?.x}
-                          y2={control1?.y}
-                          stroke="#ff2c3c"
-                          strokeWidth="0.5"
-                          strokeDasharray="2,2"
-                        />
-                        <circle
-                          cx={control1?.x}
-                          cy={control1?.y}
-                          r="1.5"
-                          fill="#ff2c3c"
-                          cursor="pointer"
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            if (!shiftPressed && !spacePressed) handleMouseDown(e, index, true, 1);
-                          }}
-                        />
-                        <line
-                          x1={transformedPoint.x}
-                          y1={transformedPoint.y}
-                          x2={control2?.x}
-                          y2={control2?.y}
-                          stroke="#ff2c3c"
-                          strokeWidth="0.5"
-                          strokeDasharray="2,2"
-                        />
-                        <circle
-                          cx={control2?.x}
-                          cy={control2?.y}
-                          r="1.5"
-                          fill="#ff2c3c"
-                          cursor="pointer"
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                            if (!shiftPressed && !spacePressed) handleMouseDown(e, index, true, 2);
-                          }}
-                        />
-                      </>
-                    )}
-                  </g>
-                );
-              })}
+              {/* Then render lines */}
+              <g className="handle-lines">
+                {points.map((point, index) => {
+                  const transformedPoint = transformPoint(point);
+                  const control1 = transformPoint(point.control1, true);
+                  const control2 = transformPoint(point.control2, true);
+
+                  return point.curve && (
+                    <g key={`lines-${index}`}>
+                      <line
+                        x1={transformedPoint.x}
+                        y1={transformedPoint.y}
+                        x2={control1?.x}
+                        y2={control1?.y}
+                        stroke="#ff2c3c"
+                        strokeWidth="0.5"
+                        strokeDasharray="2,2"
+                      />
+                      <line
+                        x1={transformedPoint.x}
+                        y1={transformedPoint.y}
+                        x2={control2?.x}
+                        y2={control2?.y}
+                        stroke="#ff2c3c"
+                        strokeWidth="0.5"
+                        strokeDasharray="2,2"
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+
+              {/* Finally render points and handles */}
+              <g className="points-and-handles">
+                {points.map((point, index) => {
+                  const transformedPoint = transformPoint(point);
+                  const control1 = transformPoint(point.control1, true);
+                  const control2 = transformPoint(point.control2, true);
+
+                  return (
+                    <g key={`points-${index}`}>
+                      <circle
+                        cx={transformedPoint.x}
+                        cy={transformedPoint.y}
+                        r="2"
+                        fill={selectedPoints.has(index) ? "#ff6f2c" : "#ff2c3c"}
+                        stroke={selectedPoints.has(index) ? "#fff" : "#fff"}
+                        strokeWidth="0.5"
+                        cursor="pointer"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          if (!shiftPressed && !spacePressed) handleMouseDown(e, index);
+                        }}
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            togglePointSelection(index, e);
+                          } else {
+                            toggleCurve(index);
+                          }
+                        }}
+                      />
+                      {point.curve && (
+                        <>
+                          <circle
+                            cx={control1?.x}
+                            cy={control1?.y}
+                            r="1.5"
+                            fill="#ff2c3c"
+                            cursor="pointer"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              if (!shiftPressed && !spacePressed) handleMouseDown(e, index, true, 1);
+                            }}
+                          />
+                          <circle
+                            cx={control2?.x}
+                            cy={control2?.y}
+                            r="1.5"
+                            fill="#ff2c3c"
+                            cursor="pointer"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              if (!shiftPressed && !spacePressed) handleMouseDown(e, index, true, 2);
+                            }}
+                          />
+                        </>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
             </svg>
           </div>
           <div className="zoom-controls">
